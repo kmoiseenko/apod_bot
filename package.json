@@ -1,0 +1,23 @@
+{
+  "name": "apod_bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kmoiseenko/apod_bot.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/kmoiseenko/apod_bot/issues"
+  },
+  "homepage": "https://github.com/kmoiseenko/apod_bot#readme",
+  "devDependencies": {
+    "node-telegram-bot-api": "^0.29.0",
+    "xmlhttprequest": "^1.8.0"
+  }
+}

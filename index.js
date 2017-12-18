@@ -48,7 +48,7 @@ function getData(url) {
 
         xhr.onload = function() {
             if (this.status == 200) {
-                resolve(this.response);
+                resolve(this.responseText);
             } else {
                 let error = new Error(this.statusText);
                 error.code = this.status;

@@ -27,7 +27,7 @@ onInit();
 // ------------------------------------------------------------
 BOT.onText(/\/subscribe/, (msg, match) => {
 	console.log(msg.from);
-	checkOutWithUsers_DataBase(msg.from);
+	checkOutWithUsersDataBase(msg.from);
 });
 
 BOT.onText(/\/pic/, (msg, match) => {
@@ -50,7 +50,7 @@ BOT.onText(/\/all/, (msg, match) => {
 // ------------------------------------------------------------
 function onInit() {
 	let job = new CronJob('00 00 14 * * *', function() {
-		console.log('Running a task every day at 14-00-00');
+		console.log('Send all users an update at 14-00-00');
 		sendResponseToAllUsers();
 	}, null, true, 'Europe/Kiev');
 	console.log('job status', job.running);
@@ -68,7 +68,7 @@ function sendResponseToAllUsers() {
 	});
 }
 
-function checkOutWithUsers_DataBase(data) {
+function checkOutWithUsersDataBase(data) {
 	let match = false;
 
 	jsonfile.readFile(USERS_DATA, (err, obj) => {
@@ -94,7 +94,7 @@ function addItemInUsersFile(data, obj) {
 		if(err){
 			console.log(err);
 		} else {
-			console.log("User " + data.first_name + " was added");
+			console.log("User " + data.first_name + " was added in database");
 			BOT.sendMessage(data.id, SUBSCRIBE_SUCCESS);
 		}
 	});

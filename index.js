@@ -6,13 +6,17 @@ let jsonfile = require('jsonfile');
 let CronJob = require('cron').CronJob;
 
 
+// Files
+// ------------------------------------------------------------
+const USERS_DATA = './json/users.json';
+const APOD = './json/apod.json';
+
+
 // Variables
 // ------------------------------------------------------------
 const API_LINK = 'https://api.nasa.gov/planetary/apod?api_key=rom93FHJOFb6TF4jSC7USdH03jogPMtfg7qDHrMd';
 const BOT_TOKEN = '508617689:AAEuLPKs-EhrjrYGnz60inYNZqakf6HJWc0';
 const BOT = new TelegramBot(BOT_TOKEN, {polling: true});
-const USERS_DATA = 'users.json';
-const APOD = 'apod.json';
 
 
 // Messages

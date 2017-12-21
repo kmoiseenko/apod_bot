@@ -1,8 +1,9 @@
-// Modules
+// Node modules
 // ------------------------------------------------------------
 let TelegramBot = require('node-telegram-bot-api');
 let XMLHttpRequest = require("xmlhttprequest").XMLHttpRequest;
 let jsonfile = require('jsonfile');
+let CronJob = require('cron').CronJob;
 
 
 // Variables
@@ -10,10 +11,13 @@ let jsonfile = require('jsonfile');
 const API_LINK = 'https://api.nasa.gov/planetary/apod?api_key=rom93FHJOFb6TF4jSC7USdH03jogPMtfg7qDHrMd';
 const BOT_TOKEN = '508617689:AAEuLPKs-EhrjrYGnz60inYNZqakf6HJWc0';
 const BOT = new TelegramBot(BOT_TOKEN, {polling: true});
-const DELAY = 21600000; // 6 hours
-// const DELAY = 60000; // 1 minute
-let usersData = 'users_data.json';
-let hours = 'hours.json';
+const USERS_DATA = 'users.json';
+
+
+// Messages
+// ------------------------------------------------------------
+const SUBSCRIBE_SUCCESS = 'You are successfully subscribed. This bot will send you a new article every day at 14-00';
+const SUBSCRIBE_ALREADY = 'You are already subscribed. Expect a new article every day at 14-00';
 
 
 onInit();
@@ -21,18 +25,23 @@ onInit();
 
 // Bot response
 // ------------------------------------------------------------
+BOT.onText(/\/subscribe/, (msg, match) => {
+	console.log(msg.from);
+	checkOutWithUsers_DataBase(msg.from);
+});
+
 BOT.onText(/\/pic/, (msg, match) => {
-	checkOutWithUsersFile(msg.from);
+	console.log(msg.from);
 	sendResponse(msg.from.id, 'pic');
 });
 
 BOT.onText(/\/desc/, (msg, match) => {
-	checkOutWithUsersFile(msg.from);
+	console.log(msg.from);
 	sendResponse(msg.from.id, 'desc');
 });
 
 BOT.onText(/\/all/, (msg, match) => {
-	checkOutWithUsersFile(msg.from);
+	console.log(msg.from);
 	sendResponse(msg.from.id, 'all');
 });
 
@@ -40,19 +49,15 @@ BOT.onText(/\/all/, (msg, match) => {
 // Functions
 // ------------------------------------------------------------
 function onInit() {
-	jsonfile.readFile(hours, (err, obj) => {
-		if(err) {
-			console.log(err);
-		} else {
-			setInterval(() => {
-				obj["hours"] === new Date().getHours() ? sendResponseToAllUsers() : console.log("Not yet");
-			}, DELAY);
-		}
-	});
+	let job = new CronJob('00 00 14 * * *', function() {
+		console.log('Running a task every day at 14-00-00');
+		sendResponseToAllUsers();
+	}, null, true, 'Europe/Kiev');
+	console.log('job status', job.running);
 }
 
 function sendResponseToAllUsers() {
-	jsonfile.readFile(usersData, (err, obj) => {
+	jsonfile.readFile(USERS_DATA, (err, obj) => {
 		if(err) {
 			console.log(err);
 		} else {
@@ -63,25 +68,35 @@ function sendResponseToAllUsers() {
 	});
 }
 
-function checkOutWithUsersFile(data) {
-	jsonfile.readFile(usersData, (err, obj) => {
+function checkOutWithUsers_DataBase(data) {
+	let match = false;
+
+	jsonfile.readFile(USERS_DATA, (err, obj) => {
 		if(err) {
 			console.log(err);
 		} else {
 			for(let key in obj) {
-				if(parseInt(key) != data.id) {
-					addItemInUsersFile(data, obj);
+				if(parseInt(key) === data.id) {
+					match = true;
+					break;
 				}
 			}
 		}
+
+		!match ? addItemInUsersFile(data, obj) : BOT.sendMessage(data.id, SUBSCRIBE_ALREADY);
 	});
 }
 
 function addItemInUsersFile(data, obj) {
-	obj[data.id.toString()] = data.username;
+	obj[data.id.toString()] = data.first_name;
 
-	jsonfile.writeFile(usersData, obj, {spaces: 2, EOL: '\r\n'}, (err) => {
-		err ? console.log(err) : null;
+	jsonfile.writeFile(USERS_DATA, obj, {spaces: 2, EOL: '\r\n'}, (err) => {
+		if(err){
+			console.log(err);
+		} else {
+			console.log("User " + data.first_name + " was added");
+			BOT.sendMessage(data.id, SUBSCRIBE_SUCCESS);
+		}
 	});
 }
 

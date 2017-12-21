@@ -12,6 +12,7 @@ const API_LINK = 'https://api.nasa.gov/planetary/apod?api_key=rom93FHJOFb6TF4jSC
 const BOT_TOKEN = '508617689:AAEuLPKs-EhrjrYGnz60inYNZqakf6HJWc0';
 const BOT = new TelegramBot(BOT_TOKEN, {polling: true});
 const USERS_DATA = 'users.json';
+const APOD = 'apod.json';
 
 
 // Messages
@@ -26,22 +27,22 @@ onInit();
 // Bot response
 // ------------------------------------------------------------
 BOT.onText(/\/subscribe/, (msg, match) => {
-	console.log(msg.from);
+	// console.log(msg.from);
 	checkOutWithUsersDataBase(msg.from);
 });
 
 BOT.onText(/\/pic/, (msg, match) => {
-	console.log(msg.from);
+	// console.log(msg.from);
 	sendResponse(msg.from.id, 'pic');
 });
 
 BOT.onText(/\/desc/, (msg, match) => {
-	console.log(msg.from);
+	// console.log(msg.from);
 	sendResponse(msg.from.id, 'desc');
 });
 
 BOT.onText(/\/all/, (msg, match) => {
-	console.log(msg.from);
+	// console.log(msg.from);
 	sendResponse(msg.from.id, 'all');
 });
 
@@ -50,79 +51,91 @@ BOT.onText(/\/all/, (msg, match) => {
 // ------------------------------------------------------------
 function onInit() {
 	let job = new CronJob('00 00 14 * * *', function() {
-		console.log('Send all users an update at 14-00-00');
-		sendResponseToAllUsers();
+		console.log('Make request to NASA api, and write response in apod.json');
+		updateApodData();
 	}, null, true, 'Europe/Kiev');
 	console.log('job status', job.running);
 }
 
+function updateApodData() {
+	getData(API_LINK).then(
+		response => {
+			jsonfile.writeFile(APOD, JSON.parse(response), {spaces: 2, EOL: '\r\n'}, (err) => {
+				if(err){
+					console.log(err);
+				} else {
+					console.log("apod.json file was updated. Now we can send updated information to all users");
+					sendResponseToAllUsers();
+				}
+			});
+		},
+		error => console.log(error)
+	);
+}
+
 function sendResponseToAllUsers() {
-	jsonfile.readFile(USERS_DATA, (err, obj) => {
+	jsonfile.readFile(USERS_DATA, (err, usersObj) => {
 		if(err) {
 			console.log(err);
 		} else {
-			for(let key in obj) {
+			for(let key in usersObj) {
 				sendResponse(parseInt(key), 'all');
 			}
 		}
 	});
 }
 
-function checkOutWithUsersDataBase(data) {
+function checkOutWithUsersDataBase(telegramData) {
 	let match = false;
 
-	jsonfile.readFile(USERS_DATA, (err, obj) => {
+	jsonfile.readFile(USERS_DATA, (err, usersObj) => {
 		if(err) {
 			console.log(err);
 		} else {
-			for(let key in obj) {
-				if(parseInt(key) === data.id) {
+			for(let key in usersObj) {
+				if(parseInt(key) === telegramData.id) {
 					match = true;
 					break;
 				}
 			}
 		}
 
-		!match ? addItemInUsersFile(data, obj) : BOT.sendMessage(data.id, SUBSCRIBE_ALREADY);
+		!match ? addItemInUsersDataBase(telegramData, usersObj) : BOT.sendMessage(telegramData.id, SUBSCRIBE_ALREADY);
 	});
 }
 
-function addItemInUsersFile(data, obj) {
-	obj[data.id.toString()] = data.first_name;
+function addItemInUsersDataBase(telegramData, usersObj) {
+	usersObj[telegramData.id.toString()] = telegramData.first_name;
 
-	jsonfile.writeFile(USERS_DATA, obj, {spaces: 2, EOL: '\r\n'}, (err) => {
+	jsonfile.writeFile(USERS_DATA, usersObj, {spaces: 2, EOL: '\r\n'}, (err) => {
 		if(err){
 			console.log(err);
 		} else {
-			console.log("User " + data.first_name + " was added in database");
-			BOT.sendMessage(data.id, SUBSCRIBE_SUCCESS);
+			console.log("User " + telegramData.first_name + " was added in database");
+			BOT.sendMessage(telegramData.id, SUBSCRIBE_SUCCESS);
 		}
 	});
 }
 
-function sendResponse(userId, type) {
-	getData(API_LINK).then(
-		response => {
-			let parseResponse = JSON.parse(response);
-			let desc = '<b>' + parseResponse.title + '</b>' + '\n' + parseResponse.explanation;
+function sendResponse(telegramUserId, command) {
+	jsonfile.readFile(APOD, (err, apodObj) => {
+		let desc = '<b>' + apodObj.title + '</b>' + '\n' + apodObj.explanation;
 
-			switch(type) {
-				case 'pic':
-					BOT.sendPhoto(userId, parseResponse.url);
-					break;
+		switch(command) {
+			case 'pic':
+				BOT.sendPhoto(telegramUserId, apodObj.url);
+				break;
 
-				case 'desc':
-					BOT.sendMessage(userId, desc, {parse_mode: 'HTML'});
-					break;
+			case 'desc':
+				BOT.sendMessage(telegramUserId, desc, {parse_mode: 'HTML'});
+				break;
 
-				case 'all':
-					BOT.sendPhoto(userId, parseResponse.url);
-					BOT.sendMessage(userId, desc, {parse_mode: 'HTML'});
-					break;
-			}
-		},
-		error => console.log(error)
-	);
+			case 'all':
+				BOT.sendPhoto(telegramUserId, apodObj.url);
+				BOT.sendMessage(telegramUserId, desc, {parse_mode: 'HTML'});
+				break;
+		}
+	});
 }
 
 function getData(url) {

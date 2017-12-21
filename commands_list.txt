@@ -1,0 +1,4 @@
+subscribe - Subscribe on updates
+pic - Send me picture
+desc - Send me description
+all - Send me picture + description

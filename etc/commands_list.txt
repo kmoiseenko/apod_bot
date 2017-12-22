@@ -1,4 +1,5 @@
 subscribe - Subscribe on updates
+unsubscribe - Unsubscribe from updates
 pic - Send me picture
 desc - Send me description
 all - Send me picture + description

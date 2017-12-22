@@ -21,8 +21,24 @@ const BOT = new TelegramBot(BOT_TOKEN, {polling: true});
 
 // Messages
 // ------------------------------------------------------------
-const SUBSCRIBE_SUCCESS = 'You are successfully subscribed. This bot will send you a new article every day at 14-00';
-const SUBSCRIBE_ALREADY = 'You are already subscribed. Expect a new article every day at 14-00';
+const MSG_SUBSCRIBE_SUCCESS = 'You are successfully subscribed. This bot will send you a new article every day at 14-00';
+const MSG_UNSUBSCRIBE_SUCCESS = 'You are successfully unsubscribed. You will not receive updates anymore';
+const MSG_SUBSCRIBE_ALREADY = 'You are already subscribed. Expect a new article every day at 14-00';
+
+
+// Commands
+// ------------------------------------------------------------
+const STR_SUBSCRIBE = 'subscribe';
+const STR_UNSUBSCRIBE = 'unsubscribe';
+const STR_PIC = 'pic';
+const STR_DESC = 'desc';
+const STR_ALL = 'all';
+
+const COMM_SUBSCRIBE = new RegExp('\\/' + STR_SUBSCRIBE);
+const COMM_UNSUBSCRIBE = new RegExp('\\/' + STR_UNSUBSCRIBE);
+const COMM_PIC = new RegExp('\\/' + STR_PIC);
+const COMM_DESC = new RegExp('\\/' + STR_DESC);
+const COMM_ALL = new RegExp('\\/' + STR_ALL);
 
 
 onInit();
@@ -30,24 +46,29 @@ onInit();
 
 // Bot response
 // ------------------------------------------------------------
-BOT.onText(/\/subscribe/, (msg, match) => {
+BOT.onText(COMM_SUBSCRIBE, (msg, match) => {
 	// console.log(msg.from);
-	checkOutWithUsersDataBase(msg.from);
+	updateUsersDataBase(msg.from, STR_SUBSCRIBE);
 });
 
-BOT.onText(/\/pic/, (msg, match) => {
+BOT.onText(COMM_UNSUBSCRIBE, (msg, match) => {
 	// console.log(msg.from);
-	sendResponse(msg.from.id, 'pic');
+	updateUsersDataBase(msg.from, STR_UNSUBSCRIBE);
 });
 
-BOT.onText(/\/desc/, (msg, match) => {
+BOT.onText(COMM_PIC, (msg, match) => {
 	// console.log(msg.from);
-	sendResponse(msg.from.id, 'desc');
+	sendResponse(msg.from.id, STR_PIC);
 });
 
-BOT.onText(/\/all/, (msg, match) => {
+BOT.onText(COMM_DESC, (msg, match) => {
 	// console.log(msg.from);
-	sendResponse(msg.from.id, 'all');
+	sendResponse(msg.from.id, STR_DESC);
+});
+
+BOT.onText(COMM_ALL, (msg, match) => {
+	// console.log(msg.from);
+	sendResponse(msg.from.id, STR_ALL);
 });
 
 
@@ -55,7 +76,7 @@ BOT.onText(/\/all/, (msg, match) => {
 // ------------------------------------------------------------
 function onInit() {
 	let job = new CronJob('00 00 14 * * *', function() {
-		console.log('Make request to NASA api, and write response in apod.json');
+		console.log('Make request to NASA api to save response in apod.json');
 		updateApodData();
 	}, null, true, 'Europe/Kiev');
 	console.log('job status', job.running);
@@ -68,7 +89,7 @@ function updateApodData() {
 				if(err){
 					console.log(err);
 				} else {
-					console.log("apod.json file was updated. Now we can send updated information to all users");
+					console.log("apod.json file was updated. Now it is time to send updated information to all users");
 					sendResponseToAllUsers();
 				}
 			});
@@ -83,13 +104,13 @@ function sendResponseToAllUsers() {
 			console.log(err);
 		} else {
 			for(let key in usersObj) {
-				sendResponse(parseInt(key), 'all');
+				sendResponse(parseInt(key), STR_ALL);
 			}
 		}
 	});
 }
 
-function checkOutWithUsersDataBase(telegramData) {
+function updateUsersDataBase(telegramData, command) {
 	let match = false;
 
 	jsonfile.readFile(USERS_DATA, (err, usersObj) => {
@@ -104,11 +125,19 @@ function checkOutWithUsersDataBase(telegramData) {
 			}
 		}
 
-		!match ? addItemInUsersDataBase(telegramData, usersObj) : BOT.sendMessage(telegramData.id, SUBSCRIBE_ALREADY);
+		switch(command) {
+			case STR_SUBSCRIBE:
+				match ? BOT.sendMessage(telegramData.id, MSG_SUBSCRIBE_ALREADY) : addUserInDataBase(telegramData, usersObj);
+				break;
+
+			case STR_UNSUBSCRIBE:
+				match ? removeUserFromDataBase(telegramData, usersObj) : BOT.sendMessage(telegramData.id, 'Эта команда вам недоступна');
+				break;
+		}
 	});
 }
 
-function addItemInUsersDataBase(telegramData, usersObj) {
+function addUserInDataBase(telegramData, usersObj) {
 	usersObj[telegramData.id.toString()] = telegramData.first_name;
 
 	jsonfile.writeFile(USERS_DATA, usersObj, {spaces: 2, EOL: '\r\n'}, (err) => {
@@ -116,9 +145,22 @@ function addItemInUsersDataBase(telegramData, usersObj) {
 			console.log(err);
 		} else {
 			console.log("User " + telegramData.first_name + " was added in database");
-			BOT.sendMessage(telegramData.id, SUBSCRIBE_SUCCESS);
+			BOT.sendMessage(telegramData.id, MSG_SUBSCRIBE_SUCCESS);
 		}
 	});
+}
+
+function removeUserFromDataBase(telegramData, usersObj) {
+	delete usersObj[telegramData.id.toString()];
+
+	jsonfile.writeFile(USERS_DATA, usersObj, {spaces: 2, EOL: '\r\n'}, (err) => {
+		if(err){
+			console.log(err);
+		} else {
+			console.log("User " + telegramData.first_name + " was removed from database");
+			BOT.sendMessage(telegramData.id, MSG_UNSUBSCRIBE_SUCCESS);
+		}
+	});	
 }
 
 function sendResponse(telegramUserId, command) {
@@ -126,17 +168,17 @@ function sendResponse(telegramUserId, command) {
 		let desc = '<b>' + apodObj.title + '</b>' + '\n' + apodObj.explanation;
 
 		switch(command) {
-			case 'pic':
+			case STR_PIC:
 				BOT.sendPhoto(telegramUserId, apodObj.url);
 				break;
 
-			case 'desc':
+			case STR_DESC:
 				BOT.sendMessage(telegramUserId, desc, {parse_mode: 'HTML'});
 				break;
 
-			case 'all':
-				BOT.sendPhoto(telegramUserId, apodObj.url);
+			case STR_ALL:
 				BOT.sendMessage(telegramUserId, desc, {parse_mode: 'HTML'});
+				BOT.sendPhoto(telegramUserId, apodObj.url);
 				break;
 		}
 	});

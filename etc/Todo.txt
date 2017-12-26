@@ -1,0 +1,4 @@
+Todo list:
+1) Add unsubscribe command.
+2) Add some kind of help command, where user can read more info about what bot can do.
+3) Replace json files with mongodb.

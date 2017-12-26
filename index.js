@@ -4,6 +4,8 @@ let TelegramBot = require('node-telegram-bot-api');
 let XMLHttpRequest = require("xmlhttprequest").XMLHttpRequest;
 let jsonfile = require('jsonfile');
 let CronJob = require('cron').CronJob;
+let moment = require('moment');
+let MongoClient = require('mongodb').MongoClient;
 
 
 // Files
@@ -42,23 +44,24 @@ const COMM_ALL = new RegExp('\\/' + STR_ALL);
 
 
 onInit();
-
+// sendResponseToAllUsers();
 
 // Bot response
 // ------------------------------------------------------------
 BOT.onText(COMM_SUBSCRIBE, (msg, match) => {
 	// console.log(msg.from);
-	updateUsersDataBase(msg.from, STR_SUBSCRIBE);
+	checkoutWithUsersCollection(msg.from, STR_SUBSCRIBE);
 });
 
 BOT.onText(COMM_UNSUBSCRIBE, (msg, match) => {
 	// console.log(msg.from);
-	updateUsersDataBase(msg.from, STR_UNSUBSCRIBE);
+	checkoutWithUsersCollection(msg.from, STR_UNSUBSCRIBE);
 });
 
 BOT.onText(COMM_PIC, (msg, match) => {
 	// console.log(msg.from);
 	sendResponse(msg.from.id, STR_PIC);
+	console.log(msg);
 });
 
 BOT.onText(COMM_DESC, (msg, match) => {
@@ -76,22 +79,32 @@ BOT.onText(COMM_ALL, (msg, match) => {
 // ------------------------------------------------------------
 function onInit() {
 	let job = new CronJob('00 00 14 * * *', function() {
-		console.log('Make request to NASA api to save response in apod.json');
-		updateApodData();
+		console.log(getCurrentTime() + ' - ' + 'Make request to NASA api to save response in apod.json');
+		updateApodCollection();
 	}, null, true, 'Europe/Kiev');
 	console.log('job status', job.running);
 }
 
-function updateApodData() {
+function updateApodCollection() {
 	getData(API_LINK).then(
 		response => {
-			jsonfile.writeFile(APOD, JSON.parse(response), {spaces: 2, EOL: '\r\n'}, (err) => {
-				if(err){
-					console.log(err);
-				} else {
-					console.log("apod.json file was updated. Now it is time to send updated information to all users");
-					sendResponseToAllUsers();
-				}
+			MongoClient.connect("mongodb://localhost:27017", (err, client) => {
+				if(err) { return console.log(getCurrentTime() + ' - ' + err); }
+
+				let db = client.db('admin');
+				let currentApod = db.collection('apod').findOne().then(result => {
+					return result;
+				});
+
+				db.collection('apod').replaceOne(
+					currentApod,
+					JSON.parse(response)
+				).then(result => {
+					if(result) {
+						client.close();
+						sendResponseToAllUsers();
+					}
+				});
 			});
 		},
 		error => console.log(error)
@@ -99,89 +112,121 @@ function updateApodData() {
 }
 
 function sendResponseToAllUsers() {
-	jsonfile.readFile(USERS_DATA, (err, usersObj) => {
-		if(err) {
-			console.log(err);
-		} else {
-			for(let key in usersObj) {
-				sendResponse(parseInt(key), STR_ALL);
-			}
-		}
+	MongoClient.connect("mongodb://localhost:27017", (err, client) => {
+		if(err) { return console.log(getCurrentTime() + ' - ' + err); }
+
+		let db = client.db('admin');
+		
+		db.collection('users').find().forEach(user => {
+			client.close();
+			sendResponse(user.id, STR_ALL);
+			console.log(getCurrentTime() + ' - ' + 'New APOD was send to all users');
+		});
 	});
 }
 
-function updateUsersDataBase(telegramData, command) {
+function checkoutWithUsersCollection(telegramData, command) {
 	let match = false;
 
-	jsonfile.readFile(USERS_DATA, (err, usersObj) => {
-		if(err) {
-			console.log(err);
-		} else {
-			for(let key in usersObj) {
-				if(parseInt(key) === telegramData.id) {
-					match = true;
-					break;
-				}
+	MongoClient.connect("mongodb://localhost:27017", (err, client) => {
+		if(err) { return console.log(getCurrentTime() + ' - ' + err); }
+
+		let db = client.db('admin');
+		
+		db.collection('users').findOne({ id: telegramData.id }).then(result => {
+			if(result) {
+				match = true;
 			}
-		}
 
-		switch(command) {
-			case STR_SUBSCRIBE:
-				match ? BOT.sendMessage(telegramData.id, MSG_SUBSCRIBE_ALREADY) : addUserInDataBase(telegramData, usersObj);
-				break;
+			switch(command) {
+				case STR_SUBSCRIBE:
+					match ? BOT.sendMessage(telegramData.id, MSG_SUBSCRIBE_ALREADY) : addUserInDataBase(telegramData);
+					break;
 
-			case STR_UNSUBSCRIBE:
-				match ? removeUserFromDataBase(telegramData, usersObj) : BOT.sendMessage(telegramData.id, 'Эта команда вам недоступна');
-				break;
-		}
+				case STR_UNSUBSCRIBE:
+					match ? removeUserFromDataBase(telegramData) : BOT.sendMessage(telegramData.id, 'Эта команда вам недоступна');
+					break;
+			}
+
+			client.close();
+		});
 	});
 }
 
-function addUserInDataBase(telegramData, usersObj) {
-	usersObj[telegramData.id.toString()] = telegramData.first_name;
+function addUserInDataBase(telegramData) {
+	MongoClient.connect("mongodb://localhost:27017", (err, client) => {
+		if(err) { return console.log(getCurrentTime() + ' - ' + err); }
 
-	jsonfile.writeFile(USERS_DATA, usersObj, {spaces: 2, EOL: '\r\n'}, (err) => {
-		if(err){
-			console.log(err);
-		} else {
-			console.log("User " + telegramData.first_name + " was added in database");
-			BOT.sendMessage(telegramData.id, MSG_SUBSCRIBE_SUCCESS);
-		}
+		let db = client.db('admin');
+		
+		db.collection('users').insertOne(telegramData).then(result => {
+			if(result) {
+				console.log(getCurrentTime() + ' - ' + "User " + telegramData.first_name + " was added in database");
+				BOT.sendMessage(telegramData.id, MSG_SUBSCRIBE_SUCCESS);
+				client.close();
+			}
+		});
 	});
 }
 
-function removeUserFromDataBase(telegramData, usersObj) {
-	delete usersObj[telegramData.id.toString()];
+function removeUserFromDataBase(telegramData) {
+	MongoClient.connect("mongodb://localhost:27017", (err, client) => {
+		if(err) { return console.log(getCurrentTime() + ' - ' + err); }
 
-	jsonfile.writeFile(USERS_DATA, usersObj, {spaces: 2, EOL: '\r\n'}, (err) => {
-		if(err){
-			console.log(err);
-		} else {
-			console.log("User " + telegramData.first_name + " was removed from database");
-			BOT.sendMessage(telegramData.id, MSG_UNSUBSCRIBE_SUCCESS);
-		}
-	});	
+		let db = client.db('admin');
+		
+		db.collection('users').deleteOne(telegramData).then(result => {
+			if(result) {
+				console.log(getCurrentTime() + ' - ' + "User " + telegramData.first_name + " was removed from database");
+				BOT.sendMessage(telegramData.id, MSG_UNSUBSCRIBE_SUCCESS);
+				client.close();
+			}
+		});
+	});
 }
 
 function sendResponse(telegramUserId, command) {
-	jsonfile.readFile(APOD, (err, apodObj) => {
-		let desc = '<b>' + apodObj.title + '</b>' + '\n' + apodObj.explanation;
+	MongoClient.connect("mongodb://localhost:27017", (err, client) => {
+		if(err) { return console.log(getCurrentTime() + ' - ' + err); }
 
-		switch(command) {
-			case STR_PIC:
-				BOT.sendPhoto(telegramUserId, apodObj.url);
-				break;
+		let db = client.db('admin');
 
-			case STR_DESC:
-				BOT.sendMessage(telegramUserId, desc, {parse_mode: 'HTML'});
-				break;
+		db.collection('apod').findOne().then(result => {
+			let desc = '<b>' + result.title + '</b>' + '\n' + result.explanation;
 
-			case STR_ALL:
-				BOT.sendMessage(telegramUserId, desc, {parse_mode: 'HTML'});
-				BOT.sendPhoto(telegramUserId, apodObj.url);
-				break;
-		}
+			switch(command) {
+				case STR_PIC:
+					checkExtention(result.url) ? BOT.sendPhoto(telegramUserId, result.url) : BOT.sendMessage(telegramUserId, result.url);
+					break;
+
+				case STR_DESC:
+					BOT.sendMessage(telegramUserId, desc, {parse_mode: 'HTML'});
+					break;
+
+				case STR_ALL:
+					BOT.sendMessage(telegramUserId, desc, {parse_mode: 'HTML'});
+					checkExtention(result.url) ? BOT.sendPhoto(telegramUserId, result.url) : BOT.sendMessage(telegramUserId, result.url);
+					break;
+			}
+
+			client.close();
+		});
 	});
+}
+
+function checkExtention(url) {
+	let extention =  url.split('.').pop();
+	let result = false;
+
+	if(extention === 'jpeg' || extention === 'png') {
+		result = true;
+	}
+
+	return result;
+}
+
+function getCurrentTime() {
+	return moment().format("MM-DD-YYYY HH:mm");
 }
 
 function getData(url) {

@@ -1,31 +1,27 @@
-// Node modules
+// Modules
 // ------------------------------------------------------------
 let TelegramBot = require('node-telegram-bot-api');
-let XMLHttpRequest = require("xmlhttprequest").XMLHttpRequest;
-let jsonfile = require('jsonfile');
 let CronJob = require('cron').CronJob;
-let moment = require('moment');
 let MongoClient = require('mongodb').MongoClient;
+let download = require('image-downloader');
 
-
-// Files
-// ------------------------------------------------------------
-const USERS_DATA = './json/users.json';
-const APOD = './json/apod.json';
+let checkExtention = require('./code/utils.js').checkExtention;
+let getCurrentTime = require('./code/utils.js').getCurrentTime;
+let getData = require('./code/utils.js').getData;
 
 
 // Variables
 // ------------------------------------------------------------
-const API_LINK = 'https://api.nasa.gov/planetary/apod?api_key=rom93FHJOFb6TF4jSC7USdH03jogPMtfg7qDHrMd';
+const NASA_API = 'https://api.nasa.gov/planetary/apod?api_key=rom93FHJOFb6TF4jSC7USdH03jogPMtfg7qDHrMd';
 const BOT_TOKEN = '508617689:AAEuLPKs-EhrjrYGnz60inYNZqakf6HJWc0';
 const BOT = new TelegramBot(BOT_TOKEN, {polling: true});
 
 
 // Messages
 // ------------------------------------------------------------
-const MSG_SUBSCRIBE_SUCCESS = 'You are successfully subscribed. This bot will send you a new article every day at 14-00';
+const MSG_SUBSCRIBE_SUCCESS = 'You are successfully subscribed. This bot will send you a new article every day at 14:00';
 const MSG_UNSUBSCRIBE_SUCCESS = 'You are successfully unsubscribed. You will not receive updates anymore';
-const MSG_SUBSCRIBE_ALREADY = 'You are already subscribed. Expect a new article every day at 14-00';
+const MSG_SUBSCRIBE_ALREADY = 'You are already subscribed. Expect a new article every day at 14:00';
 
 
 // Commands
@@ -61,7 +57,6 @@ BOT.onText(COMM_UNSUBSCRIBE, (msg, match) => {
 BOT.onText(COMM_PIC, (msg, match) => {
 	// console.log(msg.from);
 	sendResponse(msg.from.id, STR_PIC);
-	console.log(msg);
 });
 
 BOT.onText(COMM_DESC, (msg, match) => {
@@ -80,35 +75,56 @@ BOT.onText(COMM_ALL, (msg, match) => {
 function onInit() {
 	let job = new CronJob('00 00 14 * * *', function() {
 		console.log(getCurrentTime() + ' - ' + 'Make request to NASA api to save response in apod.json');
-		updateApodCollection();
+		getApod();
 	}, null, true, 'Europe/Kiev');
 	console.log('job status', job.running);
 }
 
-function updateApodCollection() {
-	getData(API_LINK).then(
+function getApod() {
+	getData(NASA_API).then(
 		response => {
-			MongoClient.connect("mongodb://localhost:27017", (err, client) => {
-				if(err) { return console.log(getCurrentTime() + ' - ' + err); }
+			let parsedResponse = JSON.parse(response);
 
-				let db = client.db('admin');
-				let currentApod = db.collection('apod').findOne().then(result => {
-					return result;
+			if(checkExtention(parsedResponse.url) === false) {
+				let imgDest = './etc/img.jpeg';
+				
+				download.image({
+					url: parsedResponse.url,
+					dest: imgDest
+				}).then(({ filename, image }) => {
+					console.log('File saved to', filename);
+					parsedResponse.url = imgDest;
+					updateApodCollection(parsedResponse);
+				}).catch((err) => {
+					console.log(err);
 				});
-
-				db.collection('apod').replaceOne(
-					currentApod,
-					JSON.parse(response)
-				).then(result => {
-					if(result) {
-						client.close();
-						sendResponseToAllUsers();
-					}
-				});
-			});
+			} else {
+				updateApodCollection(parsedResponse);
+			}
 		},
 		error => console.log(error)
 	);
+}
+
+function updateApodCollection(response) {
+	MongoClient.connect("mongodb://localhost:27017", (err, client) => {
+		if(err) { return console.log(getCurrentTime() + ' - ' + err); }
+
+		let db = client.db('admin');
+		let currentApod = db.collection('apod').findOne().then(result => {
+			return result;
+		});
+		console.log(2);
+		db.collection('apod').replaceOne(
+			currentApod,
+			response
+		).then(result => {
+			if(result) {
+				client.close();
+				sendResponseToAllUsers();
+			}
+		});
+	});
 }
 
 function sendResponseToAllUsers() {
@@ -120,7 +136,7 @@ function sendResponseToAllUsers() {
 		db.collection('users').find().forEach(user => {
 			client.close();
 			sendResponse(user.id, STR_ALL);
-			console.log(getCurrentTime() + ' - ' + 'New APOD was send to all users');
+			console.log(getCurrentTime() + ' - ' + 'New APOD was send to user ' + user.first_name);
 		});
 	});
 }
@@ -140,11 +156,11 @@ function checkoutWithUsersCollection(telegramData, command) {
 
 			switch(command) {
 				case STR_SUBSCRIBE:
-					match ? BOT.sendMessage(telegramData.id, MSG_SUBSCRIBE_ALREADY) : addUserInDataBase(telegramData);
+					match ? BOT.sendMessage(telegramData.id, MSG_SUBSCRIBE_ALREADY) : addUserInCollection(telegramData);
 					break;
 
 				case STR_UNSUBSCRIBE:
-					match ? removeUserFromDataBase(telegramData) : BOT.sendMessage(telegramData.id, 'Эта команда вам недоступна');
+					match ? removeUserFromCollection(telegramData) : BOT.sendMessage(telegramData.id, 'Эта команда вам недоступна');
 					break;
 			}
 
@@ -153,7 +169,7 @@ function checkoutWithUsersCollection(telegramData, command) {
 	});
 }
 
-function addUserInDataBase(telegramData) {
+function addUserInCollection(telegramData) {
 	MongoClient.connect("mongodb://localhost:27017", (err, client) => {
 		if(err) { return console.log(getCurrentTime() + ' - ' + err); }
 
@@ -169,13 +185,13 @@ function addUserInDataBase(telegramData) {
 	});
 }
 
-function removeUserFromDataBase(telegramData) {
+function removeUserFromCollection(telegramData) {
 	MongoClient.connect("mongodb://localhost:27017", (err, client) => {
 		if(err) { return console.log(getCurrentTime() + ' - ' + err); }
 
 		let db = client.db('admin');
 		
-		db.collection('users').deleteOne(telegramData).then(result => {
+		db.collection('users').deleteOne({ id: telegramData.id }).then(result => {
 			if(result) {
 				console.log(getCurrentTime() + ' - ' + "User " + telegramData.first_name + " was removed from database");
 				BOT.sendMessage(telegramData.id, MSG_UNSUBSCRIBE_SUCCESS);
@@ -196,7 +212,7 @@ function sendResponse(telegramUserId, command) {
 
 			switch(command) {
 				case STR_PIC:
-					checkExtention(result.url) ? BOT.sendPhoto(telegramUserId, result.url) : BOT.sendMessage(telegramUserId, result.url);
+					BOT.sendPhoto(telegramUserId, result.url);
 					break;
 
 				case STR_DESC:
@@ -205,49 +221,11 @@ function sendResponse(telegramUserId, command) {
 
 				case STR_ALL:
 					BOT.sendMessage(telegramUserId, desc, {parse_mode: 'HTML'});
-					checkExtention(result.url) ? BOT.sendPhoto(telegramUserId, result.url) : BOT.sendMessage(telegramUserId, result.url);
+					BOT.sendPhoto(telegramUserId, result.url);
 					break;
 			}
 
 			client.close();
 		});
 	});
-}
-
-function checkExtention(url) {
-	let extention =  url.split('.').pop();
-	let result = false;
-
-	if(extention === 'jpeg' || extention === 'png') {
-		result = true;
-	}
-
-	return result;
-}
-
-function getCurrentTime() {
-	return moment().format("MM-DD-YYYY HH:mm");
-}
-
-function getData(url) {
-    return new Promise(function(resolve, reject) {
-        let xhr = new XMLHttpRequest();
-        xhr.open('GET', url, true);
-
-        xhr.onload = function() {
-            if (this.status == 200) {
-                resolve(this.responseText);
-            } else {
-                let error = new Error(this.statusText);
-                error.code = this.status;
-                reject(error);
-            }
-        };
-
-        xhr.onerror = function() {
-            reject(new Error("Network Error"));
-        };
-
-        xhr.send();
-    });
 }

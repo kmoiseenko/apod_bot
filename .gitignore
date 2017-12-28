@@ -1,2 +1,4 @@
 /node_modules
 npm-debug.*
+/data/*
+start_mongodb.bat

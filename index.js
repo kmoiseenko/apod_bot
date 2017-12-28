@@ -1,13 +1,14 @@
-// Modules
+// Node modules
 // ------------------------------------------------------------
 let TelegramBot = require('node-telegram-bot-api');
 let CronJob = require('cron').CronJob;
 let MongoClient = require('mongodb').MongoClient;
 let download = require('image-downloader');
 
-let checkExtention = require('./code/utils.js').checkExtention;
-let getCurrentTime = require('./code/utils.js').getCurrentTime;
-let getData = require('./code/utils.js').getData;
+
+// Modules
+// ------------------------------------------------------------
+let Utils = require('./code/utils.js');
 
 
 // Variables
@@ -40,7 +41,7 @@ const COMM_ALL = new RegExp('\\/' + STR_ALL);
 
 
 onInit();
-// sendResponseToAllUsers();
+getApod();
 
 // Bot response
 // ------------------------------------------------------------
@@ -74,19 +75,19 @@ BOT.onText(COMM_ALL, (msg, match) => {
 // ------------------------------------------------------------
 function onInit() {
 	let job = new CronJob('00 00 14 * * *', function() {
-		console.log(getCurrentTime() + ' - ' + 'Make request to NASA api to save response in apod.json');
+		console.log(Utils.getCurrentTime() + ' - ' + 'Make request to NASA api to save response in apod.json');
 		getApod();
 	}, null, true, 'Europe/Kiev');
 	console.log('job status', job.running);
 }
 
 function getApod() {
-	getData(NASA_API).then(
+	Utils.getData(NASA_API).then(
 		response => {
 			let parsedResponse = JSON.parse(response);
 
-			if(checkExtention(parsedResponse.url) === false) {
-				let imgDest = './etc/img.jpeg';
+			if(Utils.checkExtention(parsedResponse.url) === false) {
+				let imgDest = './data/db/img.jpeg';
 				
 				download.image({
 					url: parsedResponse.url,
@@ -108,13 +109,13 @@ function getApod() {
 
 function updateApodCollection(response) {
 	MongoClient.connect("mongodb://localhost:27017", (err, client) => {
-		if(err) { return console.log(getCurrentTime() + ' - ' + err); }
+		if(err) { return console.log(Utils.getCurrentTime() + ' - ' + err); }
 
 		let db = client.db('admin');
 		let currentApod = db.collection('apod').findOne().then(result => {
 			return result;
 		});
-		console.log(2);
+		
 		db.collection('apod').replaceOne(
 			currentApod,
 			response
@@ -129,14 +130,14 @@ function updateApodCollection(response) {
 
 function sendResponseToAllUsers() {
 	MongoClient.connect("mongodb://localhost:27017", (err, client) => {
-		if(err) { return console.log(getCurrentTime() + ' - ' + err); }
+		if(err) { return console.log(Utils.getCurrentTime() + ' - ' + err); }
 
 		let db = client.db('admin');
 		
 		db.collection('users').find().forEach(user => {
 			client.close();
 			sendResponse(user.id, STR_ALL);
-			console.log(getCurrentTime() + ' - ' + 'New APOD was send to user ' + user.first_name);
+			console.log(Utils.getCurrentTime() + ' - ' + 'New APOD was send to user ' + user.first_name);
 		});
 	});
 }
@@ -145,7 +146,7 @@ function checkoutWithUsersCollection(telegramData, command) {
 	let match = false;
 
 	MongoClient.connect("mongodb://localhost:27017", (err, client) => {
-		if(err) { return console.log(getCurrentTime() + ' - ' + err); }
+		if(err) { return console.log(Utils.getCurrentTime() + ' - ' + err); }
 
 		let db = client.db('admin');
 		
@@ -171,13 +172,13 @@ function checkoutWithUsersCollection(telegramData, command) {
 
 function addUserInCollection(telegramData) {
 	MongoClient.connect("mongodb://localhost:27017", (err, client) => {
-		if(err) { return console.log(getCurrentTime() + ' - ' + err); }
+		if(err) { return console.log(Utils.getCurrentTime() + ' - ' + err); }
 
 		let db = client.db('admin');
 		
 		db.collection('users').insertOne(telegramData).then(result => {
 			if(result) {
-				console.log(getCurrentTime() + ' - ' + "User " + telegramData.first_name + " was added in database");
+				console.log(Utils.getCurrentTime() + ' - ' + "User " + telegramData.first_name + " was added in database");
 				BOT.sendMessage(telegramData.id, MSG_SUBSCRIBE_SUCCESS);
 				client.close();
 			}
@@ -187,13 +188,13 @@ function addUserInCollection(telegramData) {
 
 function removeUserFromCollection(telegramData) {
 	MongoClient.connect("mongodb://localhost:27017", (err, client) => {
-		if(err) { return console.log(getCurrentTime() + ' - ' + err); }
+		if(err) { return console.log(Utils.getCurrentTime() + ' - ' + err); }
 
 		let db = client.db('admin');
 		
 		db.collection('users').deleteOne({ id: telegramData.id }).then(result => {
 			if(result) {
-				console.log(getCurrentTime() + ' - ' + "User " + telegramData.first_name + " was removed from database");
+				console.log(Utils.getCurrentTime() + ' - ' + "User " + telegramData.first_name + " was removed from database");
 				BOT.sendMessage(telegramData.id, MSG_UNSUBSCRIBE_SUCCESS);
 				client.close();
 			}
@@ -203,7 +204,7 @@ function removeUserFromCollection(telegramData) {
 
 function sendResponse(telegramUserId, command) {
 	MongoClient.connect("mongodb://localhost:27017", (err, client) => {
-		if(err) { return console.log(getCurrentTime() + ' - ' + err); }
+		if(err) { return console.log(Utils.getCurrentTime() + ' - ' + err); }
 
 		let db = client.db('admin');
 

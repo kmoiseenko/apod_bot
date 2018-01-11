@@ -1,4 +1,4 @@
-// Modules
+// Node modules
 // ------------------------------------------------------------
 let XMLHttpRequest = require("xmlhttprequest").XMLHttpRequest;
 let moment = require('moment');
@@ -40,4 +40,4 @@ module.exports = {
             xhr.send();
         });
     }
-}
+};

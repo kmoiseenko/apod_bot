@@ -46,7 +46,7 @@ BOT.onText(COMM.comm_all, (msg, match) => {
 // Functions
 // ------------------------------------------------------------
 module.exports.onInit = function onInit() {
-	let job = new CronJob('00 31 13 * * *', function() {
+	let job = new CronJob('00 00 14 * * *', function() {
 		console.log(UTILS.getCurrentTime() + ' - ' + 'Make request to NASA api');
 		getApod();
 	}, null, true, 'Europe/Kiev');

@@ -18,28 +18,29 @@ let COMM = require('./tools/commands.js');
 const NASA_API = 'https://api.nasa.gov/planetary/apod?api_key=rom93FHJOFb6TF4jSC7USdH03jogPMtfg7qDHrMd';
 const BOT_TOKEN = '508617689:AAEuLPKs-EhrjrYGnz60inYNZqakf6HJWc0';
 const BOT = new TelegramBot(BOT_TOKEN, {polling: true});
+const MONGO_DB = 'mongodb://localhost:27017';
 
 
 // Bot response
 // ------------------------------------------------------------
 BOT.onText(COMM.comm_subscribe, (msg, match) => {
-	Main.checkoutWithUsersCollection(msg.from, COMM.str_subscribe);
+	checkoutWithUsersCollection(msg.from, COMM.str_subscribe);
 });
 
 BOT.onText(COMM.comm_unsubscribe, (msg, match) => {
-	Main.checkoutWithUsersCollection(msg.from, COMM.str_unsubscribe);
+	checkoutWithUsersCollection(msg.from, COMM.str_unsubscribe);
 });
 
 BOT.onText(COMM.comm_pic, (msg, match) => {
-	Main.sendResponse(msg.from.id, COMM.str_pic);
+	sendResponse(msg.from.id, COMM.str_pic);
 });
 
 BOT.onText(COMM.comm_desc, (msg, match) => {
-	Main.sendResponse(msg.from.id, COMM.str_desc);
+	sendResponse(msg.from.id, COMM.str_desc);
 });
 
 BOT.onText(COMM.comm_all, (msg, match) => {
-	Main.sendResponse(msg.from.id, COMM.str_all);
+	sendResponse(msg.from.id, COMM.str_all);
 });
 
 
@@ -80,7 +81,7 @@ function getApod() {
 }
 
 function updateApodCollection(response) {
-	MongoClient.connect("mongodb://localhost:27017", (err, client) => {
+	MongoClient.connect(MONGO_DB, (err, client) => {
 		if(err) { return console.log(UTILS.getCurrentTime() + ' - ' + err); }
 
 		let db = client.db('admin');
@@ -101,7 +102,7 @@ function updateApodCollection(response) {
 }
 
 function sendResponseToAllUsers() {
-	MongoClient.connect("mongodb://localhost:27017", (err, client) => {
+	MongoClient.connect(MONGO_DB, (err, client) => {
 		if(err) { return console.log(UTILS.getCurrentTime() + ' - ' + err); }
 
 		let db = client.db('admin');
@@ -117,7 +118,7 @@ function sendResponseToAllUsers() {
 function checkoutWithUsersCollection(telegramData, command) {
 	let match = false;
 
-	MongoClient.connect("mongodb://localhost:27017", (err, client) => {
+	MongoClient.connect(MONGO_DB, (err, client) => {
 		if(err) { return console.log(UTILS.getCurrentTime() + ' - ' + err); }
 
 		let db = client.db('admin');
@@ -143,7 +144,7 @@ function checkoutWithUsersCollection(telegramData, command) {
 }
 
 function addUserInCollection(telegramData) {
-	MongoClient.connect("mongodb://localhost:27017", (err, client) => {
+	MongoClient.connect(MONGO_DB, (err, client) => {
 		if(err) { return console.log(UTILS.getCurrentTime() + ' - ' + err); }
 
 		let db = client.db('admin');
@@ -159,7 +160,7 @@ function addUserInCollection(telegramData) {
 }
 
 function removeUserFromCollection(telegramData) {
-	MongoClient.connect("mongodb://localhost:27017", (err, client) => {
+	MongoClient.connect(MONGO_DB, (err, client) => {
 		if(err) { return console.log(UTILS.getCurrentTime() + ' - ' + err); }
 
 		let db = client.db('admin');
@@ -175,7 +176,7 @@ function removeUserFromCollection(telegramData) {
 }
 
 function sendResponse(telegramUserId, command) {
-	MongoClient.connect("mongodb://localhost:27017", (err, client) => {
+	MongoClient.connect(MONGO_DB, (err, client) => {
 		if(err) { return console.log(UTILS.getCurrentTime() + ' - ' + err); }
 
 		let db = client.db('admin');

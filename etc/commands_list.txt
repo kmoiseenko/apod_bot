@@ -1,5 +1,4 @@
 subscribe - Subscribe on updates
 unsubscribe - Unsubscribe from updates
-pic - Receive picture
-desc - Receive description
-all - Receive picture + description
+about - More info about this bot
+contact - Contact info

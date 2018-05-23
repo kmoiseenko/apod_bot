@@ -10,7 +10,7 @@ let TelegramBot = require('node-telegram-bot-api');
 // ------------------------------------------------------------
 let UTILS = require('./tools/tools.js');
 let MSG = require('./tools/msg.js');
-let COMM = require('./tools/commands.js');
+let COMD = require('./tools/commands.js');
 
 
 // Variables
@@ -23,24 +23,24 @@ const MONGO_DB = 'mongodb://localhost:27017';
 
 // Bot response
 // ------------------------------------------------------------
-BOT.onText(COMM.comm_subscribe, (msg, match) => {
-	checkoutWithUsersCollection(msg.from, COMM.str_subscribe);
+BOT.onText(COMD.comd_subscribe, (msg, match) => {
+	checkoutWithUsersCollection(msg.from, COMD.str_subscribe);
 });
 
-BOT.onText(COMM.comm_unsubscribe, (msg, match) => {
-	checkoutWithUsersCollection(msg.from, COMM.str_unsubscribe);
+BOT.onText(COMD.comd_unsubscribe, (msg, match) => {
+	checkoutWithUsersCollection(msg.from, COMD.str_unsubscribe);
 });
 
-BOT.onText(COMM.comm_pic, (msg, match) => {
-	sendResponse(msg.from.id, COMM.str_pic);
+BOT.onText(COMD.comd_all, (msg, match) => {
+	sendResponse(msg.from.id, COMD.str_all);
 });
 
-BOT.onText(COMM.comm_desc, (msg, match) => {
-	sendResponse(msg.from.id, COMM.str_desc);
+BOT.onText(COMD.comd_about, (msg, match) => {
+	sendResponse(msg.from.id, COMD.str_about);
 });
 
-BOT.onText(COMM.comm_all, (msg, match) => {
-	sendResponse(msg.from.id, COMM.str_all);
+BOT.onText(COMD.comd_contact, (msg, match) => {
+	sendResponse(msg.from.id, COMD.str_contact);
 });
 
 
@@ -58,23 +58,18 @@ function getApod() {
 	UTILS.getData(NASA_API).then(
 		response => {
 			let parsedResponse = JSON.parse(response);
-
-			if(UTILS.checkExtention(parsedResponse.url) === false) {
-				let imgDest = './etc/img.jpeg';
+			let fileDest = './etc/file.' + UTILS.checkExtention(parsedResponse.url);
 				
-				download.image({
-					url: parsedResponse.url,
-					dest: imgDest
-				}).then(({ filename, image }) => {
-					console.log('File saved to', filename);
-					parsedResponse.url = imgDest;
-					updateApodCollection(parsedResponse);
-				}).catch((err) => {
-					console.log(err);
-				});
-			} else {
+			download.image({
+				url: parsedResponse.url,
+				dest: fileDest
+			}).then(({ filename, image }) => {
+				console.log('File saved to', filename);
+				parsedResponse.url = fileDest;
 				updateApodCollection(parsedResponse);
-			}
+			}).catch((err) => {
+				console.log(err);
+			});
 		},
 		error => console.log(error)
 	);
@@ -109,7 +104,7 @@ function sendResponseToAllUsers() {
 		
 		db.collection('users').find().forEach(user => {
 			client.close();
-			sendResponse(user.id, COMM.str_all);
+			sendResponse(user.id, COMD.str_all);
 			console.log(UTILS.getCurrentTime() + ' - ' + 'New APOD was send to user ' + user.first_name);
 		});
 	});
@@ -129,11 +124,11 @@ function checkoutWithUsersCollection(telegramData, command) {
 			}
 
 			switch(command) {
-				case COMM.str_subscribe:
+				case COMD.str_subscribe:
 					match ? BOT.sendMessage(telegramData.id, MSG.SUBSCRIBE_ALREADY) : addUserInCollection(telegramData);
 					break;
 
-				case COMM.str_unsubscribe:
+				case COMD.str_unsubscribe:
 					match ? removeUserFromCollection(telegramData) : BOT.sendMessage(telegramData.id, MSG.UNAVALIABLE);
 					break;
 			}
@@ -183,19 +178,21 @@ function sendResponse(telegramUserId, command) {
 
 		db.collection('apod').findOne().then(result => {
 			let desc = '<b>' + result.title + '</b>' + '\n' + result.explanation;
+			let about = MSG.ABOUT;
+			let contact = MSG.CONTACT;
 
 			switch(command) {
-				case COMM.str_pic:
+				case COMD.str_all:
+					BOT.sendMessage(telegramUserId, desc, {parse_mode: 'HTML'});
 					BOT.sendPhoto(telegramUserId, result.url);
 					break;
 
-				case COMM.str_desc:
-					BOT.sendMessage(telegramUserId, desc, {parse_mode: 'HTML'});
+				case COMD.str_about:
+					BOT.sendMessage(telegramUserId, about, {parse_mode: 'HTML'});
 					break;
 
-				case COMM.str_all:
-					BOT.sendMessage(telegramUserId, desc, {parse_mode: 'HTML'});
-					BOT.sendPhoto(telegramUserId, result.url);
+				case COMD.str_contact:
+					BOT.sendMessage(telegramUserId, contact, {parse_mode: 'HTML'});
 					break;
 			}
 

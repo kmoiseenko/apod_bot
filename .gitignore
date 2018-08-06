@@ -1,5 +1,5 @@
 /node_modules
-/etc/img.jpeg
+/etc/file.jpeg
 npm-debug.*
 /data/*
 start_mongodb.bat

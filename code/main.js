@@ -43,7 +43,6 @@ BOT.onText(COMD.comd_contact, (msg, match) => {
 	sendResponse(msg.from.id, COMD.str_contact);
 });
 
-
 // Functions
 // ------------------------------------------------------------
 module.exports.onInit = function onInit() {
@@ -52,6 +51,15 @@ module.exports.onInit = function onInit() {
 		getApod();
 	}, null, true, 'Europe/Kiev');
 	console.log('job status', job.running);
+
+	UTILS.connectToDB()
+	.then(resolve => {
+		console.log(resolve);
+		resolve.close();
+	})
+	.catch(reject => {
+		console.log(reject);
+	});
 }
 
 function getApod() {
@@ -59,7 +67,7 @@ function getApod() {
 		response => {
 			let parsedResponse = JSON.parse(response);
 			let fileDest = './etc/file.' + UTILS.checkExtention(parsedResponse.url);
-				
+
 			download.image({
 				url: parsedResponse.url,
 				dest: fileDest
@@ -83,7 +91,7 @@ function updateApodCollection(response) {
 		let currentApod = db.collection('apod').findOne().then(result => {
 			return result;
 		});
-		
+
 		db.collection('apod').replaceOne(
 			currentApod,
 			response
@@ -101,7 +109,7 @@ function sendResponseToAllUsers() {
 		if(err) { return console.log(UTILS.getCurrentTime() + ' - ' + err); }
 
 		let db = client.db('admin');
-		
+
 		db.collection('users').find().forEach(user => {
 			client.close();
 			sendResponse(user.id, COMD.str_all);
@@ -117,7 +125,7 @@ function checkoutWithUsersCollection(telegramData, command) {
 		if(err) { return console.log(UTILS.getCurrentTime() + ' - ' + err); }
 
 		let db = client.db('admin');
-		
+
 		db.collection('users').findOne({ id: telegramData.id }).then(result => {
 			if(result) {
 				match = true;
@@ -143,7 +151,7 @@ function addUserInCollection(telegramData) {
 		if(err) { return console.log(UTILS.getCurrentTime() + ' - ' + err); }
 
 		let db = client.db('admin');
-		
+
 		db.collection('users').insertOne(telegramData).then(result => {
 			if(result) {
 				console.log(UTILS.getCurrentTime() + ' - ' + "User " + telegramData.first_name + " was added in database");
@@ -159,7 +167,7 @@ function removeUserFromCollection(telegramData) {
 		if(err) { return console.log(UTILS.getCurrentTime() + ' - ' + err); }
 
 		let db = client.db('admin');
-		
+
 		db.collection('users').deleteOne({ id: telegramData.id }).then(result => {
 			if(result) {
 				console.log(UTILS.getCurrentTime() + ' - ' + "User " + telegramData.first_name + " was removed from database");

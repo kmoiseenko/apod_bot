@@ -1,7 +1,13 @@
 // Node modules
 // ------------------------------------------------------------
+let MongoClient = require('mongodb').MongoClient;
 let XMLHttpRequest = require("xmlhttprequest").XMLHttpRequest;
 let moment = require('moment');
+
+
+// Variables
+// ------------------------------------------------------------
+const MONGO_DB = 'mongodb://localhost:27017';
 
 
 module.exports = {
@@ -45,6 +51,17 @@ module.exports = {
 			};
 
 			xhr.send();
+		});
+	},
+	connectToDB: function() {
+		return new Promise(function(resolve, reject) {
+			MongoClient.connect(MONGO_DB, (error, client) => {
+				if(error) {
+					reject(new Error(getCurrentTime() + ' - ' + err));
+				} else {
+					return resolve(client);
+				}
+			});
 		});
 	}
 };

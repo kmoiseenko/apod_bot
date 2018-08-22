@@ -5,10 +5,9 @@ let CronJob = require('cron').CronJob;
 let download = require('image-downloader');
 let TelegramBot = require('node-telegram-bot-api');
 
-
 // Tools
 // ------------------------------------------------------------
-let UTILS = require('./tools/tools.js');
+let TOOLS = require('./tools/tools.js');
 let MSG = require('./tools/msg.js');
 let COMD = require('./tools/commands.js');
 
@@ -47,26 +46,17 @@ BOT.onText(COMD.comd_contact, (msg, match) => {
 // ------------------------------------------------------------
 module.exports.onInit = function onInit() {
 	let job = new CronJob('00 00 14 * * *', function() {
-		console.log(UTILS.getCurrentTime() + ' - ' + 'Make request to NASA api');
+		console.log(TOOLS.getCurrentTime() + ' - ' + 'Make request to NASA api');
 		getApod();
 	}, null, true, 'Europe/Kiev');
 	console.log('job status', job.running);
-
-	UTILS.connectToDB()
-	.then(resolve => {
-		console.log(resolve);
-		resolve.close();
-	})
-	.catch(reject => {
-		console.log(reject);
-	});
 }
 
 function getApod() {
-	UTILS.getData(NASA_API).then(
+	TOOLS.getData(NASA_API).then(
 		response => {
 			let parsedResponse = JSON.parse(response);
-			let fileDest = './etc/file.' + UTILS.checkExtention(parsedResponse.url);
+			let fileDest = './etc/file.' + TOOLS.checkExtention(parsedResponse.url);
 
 			download.image({
 				url: parsedResponse.url,
@@ -84,9 +74,8 @@ function getApod() {
 }
 
 function updateApodCollection(response) {
-	MongoClient.connect(MONGO_DB, (err, client) => {
-		if(err) { return console.log(UTILS.getCurrentTime() + ' - ' + err); }
-
+	TOOLS.connectToDB()
+	.then(client => {
 		let db = client.db('admin');
 		let currentApod = db.collection('apod').findOne().then(result => {
 			return result;
@@ -97,36 +86,48 @@ function updateApodCollection(response) {
 			response
 		).then(result => {
 			if(result) {
-				client.close();
 				sendResponseToAllUsers();
 			}
+		})
+		.catch(reject => {
+			console.log(reject);
 		});
+
+		client.close();
+	})
+	.catch(reject => {
+		console.log(reject);
+		client.close();
 	});
 }
 
 function sendResponseToAllUsers() {
-	MongoClient.connect(MONGO_DB, (err, client) => {
-		if(err) { return console.log(UTILS.getCurrentTime() + ' - ' + err); }
-
+	TOOLS.connectToDB()
+	.then(client => {
 		let db = client.db('admin');
 
 		db.collection('users').find().forEach(user => {
-			client.close();
 			sendResponse(user.id, COMD.str_all);
-			console.log(UTILS.getCurrentTime() + ' - ' + 'New APOD was send to user ' + user.first_name);
+			console.log(TOOLS.getCurrentTime() + ' - ' + 'New APOD was send to user ' + user.first_name);
 		});
+
+		client.close();
+	})
+	.catch(reject => {
+		console.log(reject);
+		client.close();
 	});
 }
 
 function checkoutWithUsersCollection(telegramData, command) {
 	let match = false;
 
-	MongoClient.connect(MONGO_DB, (err, client) => {
-		if(err) { return console.log(UTILS.getCurrentTime() + ' - ' + err); }
-
+	TOOLS.connectToDB()
+	.then(client => {
 		let db = client.db('admin');
 
-		db.collection('users').findOne({ id: telegramData.id }).then(result => {
+		db.collection('users').findOne({ id: telegramData.id })
+		.then(result => {
 			if(result) {
 				match = true;
 			}
@@ -140,51 +141,74 @@ function checkoutWithUsersCollection(telegramData, command) {
 					match ? removeUserFromCollection(telegramData) : BOT.sendMessage(telegramData.id, MSG.UNAVALIABLE);
 					break;
 			}
-
-			client.close();
+		})
+		.catch(reject => {
+			console.log(reject);
 		});
+
+		client.close();
+	})
+	.catch(reject => {
+		console.log(reject);
+		client.close();
 	});
 }
 
 function addUserInCollection(telegramData) {
-	MongoClient.connect(MONGO_DB, (err, client) => {
-		if(err) { return console.log(UTILS.getCurrentTime() + ' - ' + err); }
-
+	TOOLS.connectToDB()
+	.then(client => {
 		let db = client.db('admin');
 
-		db.collection('users').insertOne(telegramData).then(result => {
+		db.collection('users').insertOne(telegramData)
+		.then(result => {
 			if(result) {
-				console.log(UTILS.getCurrentTime() + ' - ' + "User " + telegramData.first_name + " was added in database");
+				console.log(TOOLS.getCurrentTime() + ' - ' + "User " + telegramData.first_name + " was added in database");
 				BOT.sendMessage(telegramData.id, MSG.SUBSCRIBE_SUCCESS);
-				client.close();
 			}
+		})
+		.catch(reject => {
+			console.log(reject);
 		});
+
+		client.close();
+	})
+	.catch(reject => {
+		console.log(reject);
+		client.close();
 	});
 }
 
 function removeUserFromCollection(telegramData) {
-	MongoClient.connect(MONGO_DB, (err, client) => {
-		if(err) { return console.log(UTILS.getCurrentTime() + ' - ' + err); }
-
+	TOOLS.connectToDB()
+	.then(client => {
 		let db = client.db('admin');
 
-		db.collection('users').deleteOne({ id: telegramData.id }).then(result => {
+		db.collection('users').deleteOne({ id: telegramData.id })
+		.then(result => {
 			if(result) {
-				console.log(UTILS.getCurrentTime() + ' - ' + "User " + telegramData.first_name + " was removed from database");
+				console.log(TOOLS.getCurrentTime() + ' - ' + "User " + telegramData.first_name + " was removed from database");
 				BOT.sendMessage(telegramData.id, MSG.UNSUBSCRIBE_SUCCESS);
-				client.close();
 			}
+		})
+		.catch(reject => {
+			console.log(reject);
 		});
+
+		client.close();
+	})
+	.catch(reject => {
+		console.log(reject);
+		client.close();
 	});
 }
 
 function sendResponse(telegramUserId, command) {
-	MongoClient.connect(MONGO_DB, (err, client) => {
-		if(err) { return console.log(UTILS.getCurrentTime() + ' - ' + err); }
-
+	TOOLS.connectToDB()
+	.then(resolve => {
 		let db = client.db('admin');
 
-		db.collection('apod').findOne().then(result => {
+		db.collection('apod').findOne()
+		.then(result => {
 			let desc = '<b>' + result.title + '</b>' + '\n' + result.explanation;
 			let about = MSG.ABOUT;
 			let contact = MSG.CONTACT;
@@ -203,8 +227,15 @@ function sendResponse(telegramUserId, command) {
 					BOT.sendMessage(telegramUserId, contact, {parse_mode: 'HTML'});
 					break;
 			}
-
-			client.close();
+		})
+		.catch(reject => {
+			console.log(reject);
 		});
+
+		client.close();
+	})
+	.catch(reject => {
+		console.log(reject);
+		client.close();
 	});
 }

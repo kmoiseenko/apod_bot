@@ -13,7 +13,7 @@ const MONGO_DB = 'mongodb://localhost:27017';
 module.exports = {
 	checkExtention: function (url) {
 		let extention =  url.split('.').pop();
-		let result = null;
+		let result = extention;
 
 		switch(extention) {
 			case 'jpg':
@@ -21,9 +21,9 @@ module.exports = {
 			break;
 
 			// Can be something else. Testing
-			default:
-				result = extention;
-			break;
+			// default:
+			// 	result = extention;
+			// break;
 		}
 
 		return result;

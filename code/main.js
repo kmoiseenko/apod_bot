@@ -19,6 +19,9 @@ const NASA_API = 'https://api.nasa.gov/planetary/apod?api_key=rom93FHJOFb6TF4jSC
 const BOT_TOKEN = '508617689:AAEuLPKs-EhrjrYGnz60inYNZqakf6HJWc0';
 const BOT = new TelegramBot(BOT_TOKEN, {polling: true});
 const MONGO_DB = 'mongodb://localhost:27017';
+const DB_NAME_ADMIN = 'admin';
+const DB_NAME_APOD = 'apod';
+const DB_NAME_USERS = 'users';
 
 
 // Bot response
@@ -48,7 +51,7 @@ BOT.onText(COMD.comd_contact, (msg, match) => {
 // ------------------------------------------------------------
 module.exports.onInit = function onInit() {
 	let job = new CronJob('00 00 14 * * *', function() {
-		console.log(UTILS.getCurrentTime() + ' - ' + 'Make request to NASA api');
+		console.log(UTILS.getCurrentTime() + ' - ' + 'Request to NASA api');
 		getApod();
 	}, null, true, 'Europe/Kiev');
 	console.log('job status', job.running);
@@ -77,46 +80,48 @@ function getApod() {
 
 function updateApodCollection(response) {
 	MongoClient.connect(MONGO_DB, (err, client) => {
-		if(err) { return console.log(UTILS.getCurrentTime() + ' - ' + err); }
+		if(err) { return console.log(UTILS.getCurrentTime() + ' - ' + err + ' - at updateApodCollection'); }
 
-		let db = client.db('admin');
-		let currentApod = db.collection('apod').findOne().then(result => {
+		let db = client.db(DB_NAME_ADMIN);
+		let currentApod = db.collection(DB_NAME_APOD).findOne().then(result => {
 			return result;
 		});
 
-		db.collection('apod').replaceOne(
+		db.collection(DB_NAME_APOD).replaceOne(
 			currentApod,
 			response
 		).then(result => {
 			if(result) {
-				client.close();
 				sendResponseToAllUsers();
 			}
 		});
+
+		client.close();
 	});
 }
 
 function sendResponseToAllUsers() {
 	MongoClient.connect(MONGO_DB, (err, client) => {
-		if(err) { return console.log(UTILS.getCurrentTime() + ' - ' + err); }
+		if(err) { return console.log(UTILS.getCurrentTime() + ' - ' + err + ' - at sendResponseToAllUsers'); }
 
-		let db = client.db('admin');
+		const db = client.db('admin');
 
 		db.collection('users').find().forEach(user => {
-			client.close();
 			sendResponse(user.id, COMD.str_all);
-			console.log(UTILS.getCurrentTime() + ' - ' + 'New APOD was send to user ' + user.first_name);
+			console.log(UTILS.getCurrentTime() + ' - ' + 'New APOD was sent to user ' + user.first_name);
 		});
+
+		client.close();
 	});
 }
 
 function checkoutWithUsersCollection(telegramData, command) {
-	let match = false;
+	const match = false;
 
 	MongoClient.connect(MONGO_DB, (err, client) => {
-		if(err) { return console.log(UTILS.getCurrentTime() + ' - ' + err); }
+		if(err) { return console.log(UTILS.getCurrentTime() + ' - ' + err + ' - at checkoutWithUsersCollection'); }
 
-		let db = client.db('admin');
+		const db = client.db(DB_NAME_ADMIN);
 
 		db.collection('users').findOne({ id: telegramData.id }).then(result => {
 			if(result) {
@@ -132,71 +137,71 @@ function checkoutWithUsersCollection(telegramData, command) {
 					match ? removeUserFromCollection(telegramData) : BOT.sendMessage(telegramData.id, MSG.UNAVALIABLE);
 					break;
 			}
-
-			client.close();
 		});
+
+		client.close();
 	});
 }
 
 function addUserInCollection(telegramData) {
 	MongoClient.connect(MONGO_DB, (err, client) => {
-		if(err) { return console.log(UTILS.getCurrentTime() + ' - ' + err); }
+		if(err) { return console.log(UTILS.getCurrentTime() + ' - ' + err + ' - at addUserInCollection'); }
 
-		let db = client.db('admin');
+		const db = client.db(DB_NAME_ADMIN);
 
-		db.collection('users').insertOne(telegramData).then(result => {
+		db.collection(DB_NAME_USERS).insertOne(telegramData).then(result => {
 			if(result) {
 				console.log(UTILS.getCurrentTime() + ' - ' + "User " + telegramData.first_name + " was added in database");
 				BOT.sendMessage(telegramData.id, MSG.SUBSCRIBE_SUCCESS);
-				client.close();
 			}
 		});
+
+		client.close();
 	});
 }
 
 function removeUserFromCollection(telegramData) {
 	MongoClient.connect(MONGO_DB, (err, client) => {
-		if(err) { return console.log(UTILS.getCurrentTime() + ' - ' + err); }
+		if(err) { return console.log(UTILS.getCurrentTime() + ' - ' + err + ' - at removeUserFromCollection'); }
 
-		let db = client.db('admin');
+		const db = client.db(DB_NAME_ADMIN);
 
-		db.collection('users').deleteOne({ id: telegramData.id }).then(result => {
+		db.collection(DB_NAME_USERS).deleteOne({ id: telegramData.id }).then(result => {
 			if(result) {
 				console.log(UTILS.getCurrentTime() + ' - ' + "User " + telegramData.first_name + " was removed from database");
 				BOT.sendMessage(telegramData.id, MSG.UNSUBSCRIBE_SUCCESS);
-				client.close();
 			}
 		});
+
+		client.close();
 	});
 }
 
 function sendResponse(telegramUserId, command) {
-	MongoClient.connect(MONGO_DB, (err, client) => {
-		if(err) { return console.log(UTILS.getCurrentTime() + ' - ' + err); }
+	switch(command) {
+		case COMD.str_all:
+			MongoClient.connect(MONGO_DB, (err, client) => {
+				if(err) { return console.log(UTILS.getCurrentTime() + ' - ' + err + ' - at sendResponse'); }
 
-		let db = client.db('admin');
+				const db = client.db(DB_NAME_ADMIN);
 
-		db.collection('apod').findOne().then(result => {
-			let desc = '<b>' + result.title + '</b>' + '\n' + result.explanation;
-			let about = MSG.ABOUT;
-			let contact = MSG.CONTACT;
+				db.collection(DB_NAME_APOD).findOne().then(result => {
+					const desc = '<b>' + result.title + '</b>' + '\n' + result.explanation;
 
-			switch(command) {
-				case COMD.str_all:
 					BOT.sendMessage(telegramUserId, desc, {parse_mode: 'HTML'});
 					BOT.sendPhoto(telegramUserId, result.url);
-					break;
+				});
 
-				case COMD.str_about:
-					BOT.sendMessage(telegramUserId, about, {parse_mode: 'HTML'});
-					break;
+				client.close();
+			});
+			break;
 
-				case COMD.str_contact:
-					BOT.sendMessage(telegramUserId, contact, {parse_mode: 'HTML'});
-					break;
-			}
+		case COMD.str_about:
+			BOT.sendMessage(telegramUserId, MSG.ABOUT, {parse_mode: 'HTML'});
+			break;
 
-			client.close();
-		});
-	});
+		case COMD.str_contact:
+			BOT.sendMessage(telegramUserId, MSG.CONTACT, {parse_mode: 'HTML'});
+			break;
+	}
 }

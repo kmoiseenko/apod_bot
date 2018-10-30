@@ -2,3 +2,4 @@ subscribe - Subscribe on updates
 unsubscribe - Unsubscribe from updates
 about - More info about this bot
 contact - Contact info
+all - Receive latest APOD
